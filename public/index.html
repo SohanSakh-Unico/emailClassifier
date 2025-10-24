@@ -370,11 +370,20 @@
 
             try {
                 // Simulate a network request
-                const newRecords = await new Promise(resolve => {
-                    setTimeout(() => {
-                        resolve(userProvidedData); // Use the data you provided
-                    }, 500); // 500ms delay
-                });
+                const response = await fetch('/data/poc_extracted_data.jsonl');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const text = await response.text();
+                const lines = text.trim().split('\n').filter(line => line.length > 0);
+                const newRecords = lines.map(line => JSON.parse(line));
+                // const newRecords = await new Promise(resolve => {
+                //     setTimeout(() => {
+                //         resolve(userProvidedData); // Use the data you provided
+                //     }, 500); // 500ms delay
+                // });
 
                 updatedSpan.textContent = `Last update: ${new Date().toLocaleTimeString()}`;
 
