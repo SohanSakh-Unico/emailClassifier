@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-R-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Reservation Triage Hub</title>
+    <style>
+        /* BASE & LAYOUT */
+        :root {
+            --blue-500: #3b82f6;
+            --blue-600: #2563eb;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-500: #6b7280;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --green-600: #059669;
+            --red-600: #dc2626;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif; 
+            margin: 0; 
+            padding: 24px; 
+            background-color: #f5f7fa;
+            color: var(--gray-800); 
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        
+        /* HEADERS & SECTIONS */
+        h1, h2, h3, h4 {
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-top: 0;
+        }
+        h1 {
+            color: var(--green-600);
+            border-bottom: 2px solid var(--gray-200);
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+        h2 { font-size: 1.5em; }
+        h3 { font-size: 1.1em; margin-bottom: 12px; border-bottom: 1px solid var(--gray-200); padding-bottom: 6px;}
+        h4 { font-size: 0.9em; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;}
+
+        #main-view { 
+            background: white; 
+            padding: 24px; 
+            border-radius: 12px; 
+            box-shadow: var(--shadow);
+            overflow: hidden; 
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* CONTROLS (Updated) */
+        #controls {
+            display: flex;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            gap: 16px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        #controls label {
+            font-weight: 600;
+            font-size: 0.85em;
+            color: var(--gray-700);
+        }
+        #controls select {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--gray-200);
+            background-color: #fff;
+            font-size: 0.85em;
+        }
+        #last-updated {
+            font-size: 0.85em;
+            color: var(--gray-500);
+            margin-left: auto; /* Pushes to the right */
+        }
+
+        /* BUTTONS */
+        .btn, .refresh-btn, .action-btn { 
+            padding: 8px 15px; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: 600;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+        .btn-primary { background-color: var(--blue-500); color: white; }
+        .btn-primary:hover { background-color: var(--blue-600); }
+        .btn-secondary { background-color: var(--gray-100); color: var(--gray-700); border: 1px solid var(--gray-200); }
+        .btn-secondary:hover { background-color: var(--gray-200); }
+        
+        .close-btn { 
+            background-color: transparent; 
+            color: #9ca3af; 
+            padding: 4px; 
+            font-size: 1.5em; 
+            position: absolute; 
+            top: 16px; 
+            right: 16px; 
+            border: none;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .close-btn:hover { color: #ef4444; }
+
+        /* TABLE STYLES (Updated with new columns) */
+        #results-container {
+            width: 100%;
+            overflow-x: auto; /* Allow horizontal scroll for new columns */
+            flex-grow: 1;
+        }
+        .results-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 0.85em; 
+            min-width: 1200px; /* Force horizontal scroll if needed */
+        }
+        .results-table th, .results-table td { 
+            padding: 14px 15px; 
+            text-align: left; 
+            border-bottom: 1px solid var(--gray-200); 
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            vertical-align: middle;
+        }
+        .results-table th { 
+            background-color: var(--gray-50); 
+            color: var(--gray-500); 
+            font-weight: 700; 
+            text-transform: uppercase;
+            font-size: 0.8em;
+            position: sticky; /* Sticky header for scrolling */
+            top: 0;
+            z-index: 1; /* Ensure header is above rows */
+        }
+        .results-table tr { cursor: pointer; transition: background-color 0.2s; }
+        .results-table tr:hover:not(.active-row) { background-color: var(--gray-100); }
+        .results-table tr.active-row { 
+            background-color: #e0f7fa; 
+            border-left: 5px solid #00bcd4; 
+            font-weight: 600;
+        }
+        .results-table td .status-badge {
+            margin: 0;
+        }
+        
+        /* --- NEW: MODAL DETAIL PANEL --- */
+        #modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(23, 37, 51, 0.5); /* Dimming background */
+            backdrop-filter: blur(4px); /* Blur effect */
+            display: none; /* Hidden by default */
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            padding: 24px;
+            box-sizing: border-box;
+        }
+        
+        #detail-panel { 
+            background: #fff; 
+            padding: 24px; 
+            border-radius: 12px; 
+            box-shadow: var(--shadow); 
+            position: relative; /* For the close button */
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 800px; /* Wider for modal view */
+            max-height: 90vh; /* Max height */
+        }
+        
+        #detail-content {
+            overflow-y: auto; /* Panel content scrolls */
+            padding-right: 16px; /* Space for scrollbar */
+        }
+
+        /* NEW: Detail Card Structure */
+        .detail-card {
+            background-color: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .detail-card p {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            margin: 6px 0;
+        }
+        .data-label { color: var(--gray-500); font-weight: 500; }
+        .data-value { color: var(--gray-800); font-weight: 600; text-align: right; }
+        
+        /* NEW: Action Center */
+        #action-center {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        #action-center .btn {
+            width: 100%;
+            padding: 10px;
+            font-size: 0.9em;
+        }
+        #action-center .btn-full {
+            grid-column: 1 / -1;
+        }
+
+        /* Raw Text/JSON Container (Preserved) */
+        #detail-content pre { 
+            font-size: 0.75em; 
+            background-color: var(--gray-800); /* Dark mode for code */
+            color: #f8f8f2; /* Light text for readability */
+            padding: 12px; 
+            border-radius: 6px; 
+            max-height: 200px; 
+            overflow-y: auto; 
+            white-space: pre-wrap; 
+            word-break: break-all;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+        
+        /* STATUS & PRIORITY BADGES */
+        .status-badge { 
+            display: inline-block; 
+            padding: 4px 10px; 
+            border-radius: 12px; /* Pill shape */
+            font-size: 0.75em; 
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-true { background-color: #d1fae5; color: #065f46; } /* EXISTING */
+        .status-false { background-color: #fee2e2; color: #991b1b; } /* NEW */
+        
+        /* Detailed Intent Badges */
+        .intent-NEW_RFQ, .intent-NEW_RFQ_AFTER_PREVIOUS { background-color: #d1fae5; color: #065f46; }
+        .intent-FOLLOW_UP_ORDER { background-color: #fef3c7; color: #92400e; }
+        .intent-FAILURE_REVIEW_NEEDED { background-color: #fecaca; color: #dc2626; }
+        .intent-OTHER_INQUIRY, .intent-CANCELLATION { background-color: #e0f2f1; color: #0f766e; }
+
+        /* Triage Intent Badges */
+        .triage-RFQ { background-color: #cffafe; color: #0e7490; }
+        .triage-FOLLOW_UP { background-color: #e0e7ff; color: #4338ca; }
+        .triage-NOISE_SPAM { background-color: #f3f4f6; color: #4b5563; }
+        .triage-COMPLAINT { background-color: #fecaca; color: #b91c1c; }
+        .triage-OTHER { background-color: #e5e7eb; color: #374151; }
+
+
+        .priority-badge {
+            padding: 5px 10px;
+            font-weight: 700;
+            border-radius: 6px;
+            font-size: 0.8em;
+            text-align: center;
+        }
+        .priority-HIGH { background-color: #fecaca; color: #b91c1c; }
+        .priority-MEDIUM { background-color: #fef3c7; color: #92400e; }
+        .priority-LOW { background-color: #d1fae5; color: #065f46; }
+
+        /* Toast Notification */
+        #toast-notification {
+            position: fixed;
+            bottom: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--gray-800);
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            font-weight: 600;
+            transition: bottom 0.5s ease-in-out;
+            z-index: 1000;
+        }
+        #toast-notification.show {
+            bottom: 24px;
+        }
+    </style>
+</head>
+<body>
+    
+    <div id="main-view">
+        <h1>AI Reservation Triage Hub</h1>
+        
+        <div id="controls">
+            <label for="filter-triage">Show:</label>
+            <select id="filter-triage">
+                <option value="ALL" selected>Show All Emails</option>
+                <option value="true">Reservation Leads Only</option>
+                <option value="false">Non-Reservation Emails</option>
+            </select>
+            
+            <label for="filter-intent">Triage Intent:</label>
+            <select id="filter-intent">
+                <option value="ALL" selected>All Intents</option>
+                <option value="RFQ">RFQ</option>
+                <option value="FOLLOW_UP">Follow-Up</option>
+                <option value="NOISE_SPAM">Noise/Spam</option>
+                <option value="COMPLAINT">Complaint</option>
+                <option value="OTHER">Other</option>
+            </select>
+            
+            <label for="sort-by">Sort By:</label>
+            <select id="sort-by">
+                <option value="time_desc" selected>Newest First</option>
+                <option value="time_asc">Oldest First</option>
+                <option value="priority">Priority</option>
+            </select>
+
+            <span id="last-updated">Updating...</span>
+        </div>
+
+        <div id="results-container">
+            </div>
+    </div>
+    
+    <div id="modal-overlay" onclick="closeDetailsOutside(event)">
+        <div id="detail-panel">
+            <button class="close-btn" onclick="closeDetails()">&#x2715;</button> 
+            <div id="detail-content">
+                <p>Select a row from the table to view the complete extracted JSON, raw email text, and Triage decisions.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-notification">New leads have arrived!</div>
+
+    <script>
+        // Use a Map for robust, non-duplicate data storage
+        let allRecords = new Map(); 
+        let activeRecordId = null; 
+        
+        // Store filter/sort state
+        let currentFilters = {
+            is_reservation_lead: 'ALL', // Updated default
+            intent: 'ALL'
+        };
+        let currentSort = 'time_desc';
+
+        // --- Data Loading & Rendering ---
+
+        // NEW: Using your provided JSON examples
+        const userProvidedData = [
+            {"emailId":"1554","senderEmail":"vasim.gujrati@unicoconnect.com","subject":"Request for Quotation – Hotel Reservation for 26th October","rawText":"Dear Sir\n\nI hope this message finds you well.\n\nI would like to request a quotation for a hotel reservation on *26th\nOctober*.\nPlease find the details below:\n\n   -\n\n   *Date of Stay:* 26th October\n   -\n\n   *Accommodation Type:* 2-bedroom accommodation\n   -\n\n   *Guests:* 2 males, 2 females, and 2 children (total 6 guests)\n\n   Please share the available room options, total cost (including taxes),\n   and any package or meal plan details applicable for this booking.\n\nLooking forward to your response at your earliest convenience.\n\nThanks,\nVasim Gujrati\n\nVasim gujrati\n\nTech Lead\n+917021974812\nvasim.gujrati@unicoconnect.com\n------------------------------\nLet’s Connect and Collaborate\n<http://www.unicoconnect.com/>\n<https://www.linkedin.com/company/unico-connect-llp/mycompany/>\n\nDISCLAIMER: This e-mail contains Proprietary Information about Unico\nConnect and some information that may be legally privileged. It is for the\nintended recipient only. If an addressing or transmission error has\nmisdirected this e-mail, please notify the author by replying to it. If you\nare not the intended recipient, you may not use, disclose, distribute,\ncopy, print or rely on this e-mail.\n","ingestionTimestamp":"2025-10-24T07:05:38.000Z","triageRecord":{"is_reservation_lead":true,"initial_intent_type":"RFQ"},"extractedData":{"intent":"NEW_RFQ","confidence_score":0.9,"stay_dates":{"check_in_date":"2023-10-26","check_out_date":"2023-10-27","num_nights":1},"accommodation":{"num_people":6,"num_rooms":3,"board_basis":"UNKNOWN"},"hotel_preference":{"name":null,"star_rating":null},"requester_details":{"full_name":"Vasim Gujrati","organization":"Unico Connect"},"processing_metadata":{"triage_intent":"RFQ","triage_decision":true,"is_existing_customer":false}}},
+            {"emailId":"1555","senderEmail":"vasim.gujrati@unicoconnect.com","subject":"Follow-Up on Hotel Reservation Quote Request – 26th October","rawText":"Dear Sir\n\nI hope you are doing well.\n\nI’m writing to kindly follow up on my previous email regarding the *hotel\nreservation for 26th October*. I had requested a quotation for *2-bedroom\naccommodation* for *2 males, 2 females, and 2 children*, along with adding\nan additional email address for correspondence.\n\nCould you please confirm the availability and share the quotation details\nat your earliest convenience?\nWe’d like to finalize the arrangements soon.\n\nThank you very much for your time and assistance.\nThanks,\nVasim Gujrati\n\nVasim gujrati\n\nTech Lead\n+917021974812\nvasim.gujrati@unicoconnect.com\n------------------------------\nLet’s Connect and Collaborate\n<http://www.unicoconnect.com/>\n<https://www.linkedin.com/company/unico-connect-llp/mycompany/>\n\nDISCLAIMER: This e-mail contains Proprietary Information about Unico\nConnect and some information that may be legally privileged. It is for the\nintended recipient only. If an addressing or transmission error has\nmisdirected this e-mail, please notify the author by replying to it. If you\nare not the intended recipient, you may not use, disclose, distribute,\ncopy, print or rely on this e-mail.\n","ingestionTimestamp":"2025-10-24T07:13:38.000Z","triageRecord":{"is_reservation_lead":true,"initial_intent_type":"FOLLOW_UP"},"extractedData":{"intent":"NEW_RFQ_AFTER_PREVIOUS","confidence_score":0.9,"stay_dates":{"check_in_date":"2023-10-26","check_out_date":"2023-10-27","num_nights":1},"accommodation":{"num_people":6,"num_rooms":2,"board_basis":"UNKNOWN"},"hotel_preference":{"name":null,"star_rating":null},"requester_details":{"full_name":"Vasim Gujrati","organization":"Unico Connect"},"processing_metadata":{"triage_intent":"FOLLOW_UP","triage_decision":true,"is_existing_customer":false}}},
+            {"emailId":"1557","senderEmail":"vasim.gujrati@unicoconnect.com","subject":"Follow-Up on Hotel Reservation Quote Request – 26th October","rawText":"Dear Sir\n\nI hope you are doing well.\n\nI’m writing to kindly follow up on my previous email regarding the *hotel\nreservation for 26th October*. I had requested a quotation for *2-bedroom\naccommodation* for *2 males, 2 females, and 2 children*, along with adding\nan additional email address for correspondence.\n\nCould you please confirm the availability and share the quotation details\nat your earliest convenience?\nWe’d like to finalize the arrangements soon.\n\nThank you very much for your time and assistance.\nThanks,\nVasim Gujrati\n\nVasim gujrati\n\nTech Lead\n+917021974812\nvasim.gujrati@unicoconnect.com\n------------------------------\nLet’s Connect and Collaborate\n<http://www.unicoconnect.com/>\n<https://www.linkedin.com/company/unico-connect-llp/mycompany/>\n\nDISCLAIMER: This e-mail contains Proprietary Information about Unico\nConnect and some information that may be legally privileged. It is for the\nintended recipient only. If an addressing or transmission error has\nmisdirected this e-mail, please notify the author by replying to it. If you\nare not the intended recipient, you may not use, disclose, distribute,\ncopy, print or rely on this e-mail.\n","ingestionTimestamp":"2025-10-24T07:25:10.000Z","triageRecord":{"is_reservation_lead":true,"initial_intent_type":"FOLLOW_UP"},"extractedData":{"intent":"FOLLOW_UP_ORDER","confidence_score":0.9,"stay_dates":{"check_in_date":"2023-10-26","check_out_date":"2023-10-27","num_nights":1},"accommodation":{"num_people":6,"num_rooms":2,"board_basis":"UNKNOWN"},"hotel_preference":{"name":null,"star_rating":null},"requester_details":{"full_name":"Vasim Gujrati","organization":"Unico Connect"},"processing_metadata":{"triage_intent":"FOLLOW_UP","triage_decision":true,"is_existing_customer":false}}}
+        ];
+        
+        async function loadData() {
+            const updatedSpan = document.getElementById('last-updated');
+            updatedSpan.textContent = `Updating...`;
+
+            try {
+                // Simulate a network request
+                const newRecords = await new Promise(resolve => {
+                    setTimeout(() => {
+                        resolve(userProvidedData); // Use the data you provided
+                    }, 500); // 500ms delay
+                });
+
+                updatedSpan.textContent = `Last update: ${new Date().toLocaleTimeString()}`;
+
+                let newLeadCount = 0;
+                newRecords.forEach(record => {
+                    if (!allRecords.has(record.emailId)) {
+                        newLeadCount++;
+                    }
+                    allRecords.set(record.emailId, record);
+                });
+                
+                if (newLeadCount > 0) {
+                    showNotification(`${newLeadCount} new lead(s) arrived.`);
+                }
+
+                renderTable();
+
+            } catch (error) {
+                console.error("Failed to load data:", error);
+                document.getElementById('results-container').innerHTML = `<p style="color: red; text-align: center; padding: 20px;">Failed to load data. Error: ${error.message}</p>`;
+            }
+        }
+
+        function renderTable() {
+            const container = document.getElementById('results-container');
+            
+            let recordsArray = Array.from(allRecords.values());
+
+            // 1. FILTER
+            recordsArray = recordsArray.filter(record => {
+                // NEW: Triage lead filter (ALL, true, false)
+                const triageFilter = (currentFilters.is_reservation_lead === 'ALL') || (String(record.triageRecord.is_reservation_lead) === currentFilters.is_reservation_lead);
+                
+                // NEW: Triage Intent filter
+                const intentFilter = (currentFilters.intent === 'ALL') || (record.triageRecord.initial_intent_type === currentFilters.intent);
+                
+                return triageFilter && intentFilter;
+            });
+
+            // 2. SORT
+            recordsArray.sort((a, b) => {
+                if (currentSort === 'priority') {
+                    return getPriorityScore(a) - getPriorityScore(b); // Lower score = higher priority
+                }
+                const timeA = new Date(a.ingestionTimestamp).getTime();
+                const timeB = new Date(b.ingestionTimestamp).getTime();
+                return currentSort === 'time_desc' ? timeB - timeA : timeA - timeB;
+            });
+            
+            if (recordsArray.length === 0) {
+                container.innerHTML = '<p style="text-align: center; padding: 40px; color: var(--gray-500);">No records match your current filters.</p>';
+                return;
+            }
+
+            // NEW: Updated table headers
+            let tableHTML = `
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 8%;">Time</th>
+                            <th style="width: 8%;">Priority</th>
+                            <th style="width: 15%;">Requester</th> 
+                            <th style="width: 25%;">Subject</th>
+                            <th style="width: 10%;">Check-in</th>
+                            <th style="width: 5%;">Nights</th>
+                            <th style="width: 5%;">Guests</th>
+                            <th style="width: 5%;">Rooms</th>
+                            <th style="width: 10%;">Triage Intent</th>
+                            <th style="width: 10%;">Customer</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            recordsArray.forEach(record => {
+                const data = record.extractedData;
+                const meta = data.processing_metadata;
+                
+                const customerStatus = meta.is_existing_customer 
+                    ? `<span class="status-badge status-true">EXISTING</span>` 
+                    : `<span class="status-badge status-false">NEW</span>`;
+                
+                const time = new Date(record.ingestionTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                // NEW: Add data for new columns
+                const checkIn = data.stay_dates.check_in_date ? formatDate(data.stay_dates.check_in_date) : '–';
+                const numNights = data.stay_dates.num_nights || '–';
+                const numPeople = data.accommodation.num_people || '–';
+                const numRooms = data.accommodation.num_rooms || '–';
+
+                tableHTML += `
+                    <tr id="row-${record.emailId}" onclick="showDetails('${record.emailId}')" class="${activeRecordId === record.emailId ? 'active-row' : ''}">
+                        <td>${time}</td>
+                        <td>${getPriorityBadge(record)}</td>
+                        <td>${record.senderEmail}</td>
+                        <td style="white-space: normal; word-break: break-word;">${record.subject}</td>
+                        <td>${checkIn}</td>
+                        <td>${numNights}</td>
+                        <td>${numPeople}</td>
+                        <td>${numRooms}</td>
+                        <td>${formatTriageIntent(record.triageRecord.initial_intent_type)}</td>
+                        <td>${customerStatus}</td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += `</tbody></table>`;
+            container.innerHTML = tableHTML;
+            
+            // Re-select active row if it's still in the filtered list
+            if (activeRecordId && document.getElementById(`row-${activeRecordId}`)) {
+                document.getElementById(`row-${activeRecordId}`).classList.add('active-row');
+            }
+        }
+
+        // --- Detail Panel & Actions ---
+
+        function showDetails(emailId) {
+            const record = allRecords.get(emailId);
+            if (!record) return;
+            
+            const data = record.extractedData;
+            const modalOverlay = document.getElementById('modal-overlay');
+            const detailContent = document.getElementById('detail-content');
+            
+            activeRecordId = emailId;
+            renderTable(); // Re-render to highlight the new active row
+
+            // Format dates
+            const checkIn = data.stay_dates.check_in_date ? new Date(data.stay_dates.check_in_date).toDateString() : 'N/A';
+            const checkOut = data.stay_dates.check_out_date ? new Date(data.stay_dates.check_out_date).toDateString() : 'N/A';
+            const stayDuration = (checkIn !== 'N/A' && checkOut !== 'N/A') 
+                ? `${checkIn} - ${checkOut} (${data.stay_dates.num_nights} Nights)`
+                : (checkIn !== 'N/A' ? `${checkIn} (${data.stay_dates.num_nights} Nights)` : 'N/A');
+
+            // Build the detail content with new "Cards"
+            detailContent.innerHTML = `
+                <h2>${record.subject}</h2>
+                <hr style="border: 0; border-top: 1px solid var(--gray-200); margin: 16px 0;">
+
+                <h4>Action Center</h4>
+                <div id="action-center" class="detail-card">
+                    <a href="mailto:${record.senderEmail}?subject=RE: ${record.subject}" class="btn btn-primary btn-full">Reply to Requester</a>
+                    <button class="btn btn-secondary">Mark as Processed</button>
+                    <button class="btn btn-secondary" style="color: #b91c1c;">Flag for Review</button>
+                </div>
+
+                <h4>Requester Details</h4>
+                <div class="detail-card">
+                    <p><span class="data-label">Name:</span> <span class="data-value">${data.requester_details.full_name || 'N/A'}</span></p>
+                    <p><span class="data-label">Email:</span> <span class="data-value">${record.senderEmail}</span></p>
+                    <p><span class="data-label">Organization:</span> <span class="data-value">${data.requester_details.organization || 'N/A'}</span></p>
+                    <p><span class="data-label">Status:</span> <span class="data-value">${data.processing_metadata.is_existing_customer ? 'Existing Customer' : 'New Customer'}</span></p>
+                </div>
+                
+                <h4>Booking Request</h4>
+                <div class="detail-card">
+                    <p><span class="data-label">Stay:</span> <span class="data-value">${stayDuration}</span></p>
+                    <p><span class="data-label">Guests:</span> <span class="data-value">${data.accommodation.num_people || 'N/A'} People</span></p>
+                    <p><span class="data-label">Rooms:</span> <span class="data-value">${data.accommodation.num_rooms || 'N/A'} Rooms</span></p>
+                    <p><span class="data-label">Board:</span> <span class="data-value">${data.accommodation.board_basis}</span></p>
+                    <p><span class="data-label">Hotel Pref:</span> <span class="data-value">${data.hotel_preference.name || 'Any'} (★ ${data.hotel_preference.star_rating || 'N/A'})</span></p>
+                </div>
+
+                <h4>AI Triage & Analysis</h4>
+                <div class="detail-card">
+                    <p><span class="data-label">Reservation Lead?</span> <span class="data-value">${record.triageRecord.is_reservation_lead ? 'Yes' : 'No'}</span></p>
+                    <p><span class="data-label">Triage Intent:</span> <span class="data-value">${record.triageRecord.initial_intent_type}</span></p>
+                    <p><span class="data-label">Detailed Intent:</span> <span class="data-value">${data.intent}</span></p>
+                    <p><span class="data-label">Confidence:</span> <span class="data-value">${Math.round(data.confidence_score * 100)}%</span></p>
+                </div>
+
+                <h4>Raw Email Text</h4>
+                <pre>${record.rawText}</pre>
+                
+                <h4>Full JSON Payload</h4>
+                <pre id="json-view">${JSON.stringify(record, null, 2)}</pre>
+                <button class="btn btn-secondary" onclick="navigator.clipboard.writeText(document.getElementById('json-view').textContent)">Copy Full JSON</button>
+            `;
+            
+            modalOverlay.style.display = 'flex'; // Show modal
+            detailContent.scrollTop = 0; // Scroll to top of panel
+        }
+
+        function closeDetails() {
+            document.getElementById('modal-overlay').style.display = 'none'; // Hide modal
+            activeRecordId = null;
+            renderTable(); // Re-render to remove active state
+        }
+        
+        // NEW: Allow closing modal by clicking overlay
+        function closeDetailsOutside(event) {
+            if (event.target.id === 'modal-overlay') {
+                closeDetails();
+            }
+        }
+
+        // --- Helpers & Utilities ---
+
+        function formatTriageIntent(intent) {
+            if (!intent) return 'N/A';
+            return `<span class="status-badge triage-${intent}">${intent}</span>`;
+        }
+
+        // NEW: Helper for date formatting
+        function formatDate(dateString) {
+            if (!dateString) return '–';
+            const date = new Date(dateString);
+            // Format as "Oct 26"
+            return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        }
+        
+        function getPriorityScore(record) {
+            // Lower score is higher priority
+            if (record.triageRecord.initial_intent_type === 'COMPLAINT') return 0;
+            if (record.triageRecord.initial_intent_type === 'RFQ' && !record.extractedData.processing_metadata.is_existing_customer) return 1;
+            if (record.triageRecord.initial_intent_type === 'RFQ') return 2;
+            if (record.triageRecord.initial_intent_type === 'FOLLOW_UP') return 3;
+            if (record.triageRecord.initial_intent_type === 'OTHER') return 4;
+            return 5; // NOISE_SPAM
+        }
+
+        function getPriorityBadge(record) {
+            const score = getPriorityScore(record);
+            if (score <= 1) return `<span class="priority-badge priority-HIGH">High</span>`;
+            if (score <= 3) return `<span class="priority-badge priority-MEDIUM">Medium</span>`;
+            return `<span class="priority-badge priority-LOW">Low</span>`;
+        }
+
+        function showNotification(message) {
+            const toast = document.getElementById('toast-notification');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // --- Event Listeners ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Attach filter/sort listeners
+            document.getElementById('filter-triage').addEventListener('change', (e) => {
+                currentFilters.is_reservation_lead = e.target.value;
+                renderTable();
+            });
+            document.getElementById('filter-intent').addEventListener('change', (e) => {
+                currentFilters.intent = e.target.value;
+                renderTable();
+            });
+            document.getElementById('sort-by').addEventListener('change', (e) => {
+                currentSort = e.target.value;
+                renderTable();
+            });
+
+            // Initial Load
+            loadData();
+            
+            // Set up auto-refresh to simulate a live feed
+            // setInterval(loadData, 10000); // Polling disabled for this static demo
+        });
+
+    </script>
+</body>
+</html>
